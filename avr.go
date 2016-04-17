@@ -6,63 +6,16 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
-	"math"
 	"net"
 	"strconv"
 )
 
-const (
-	DisplayInfoQuery = "?FL"
-)
-
-const (
-	PowerOn  = "PO"
-	PowerOff = "PF"
-
-	PowerQuery = "?P"
-)
-
-const (
-	VolumeUp   = "VU"
-	VolumeDown = "VD"
-	VolumeSet  = "%dVL"
-
-	VolumeQuery = "?V"
-)
-
-const (
-	MuteOn  = "MO"
-	MuteOff = "MF"
-
-	MuteQuery = "?M"
-)
-
-type DisplayInfo struct {
-	GUIDIcon      bool
-	VolumeDisplay bool
-	Message       string
-}
-
-type PowerInfo struct {
-	On bool
-}
-
-type VolumeInfo struct {
-	Volume float32
-}
-
-func (volume VolumeInfo) Convert() int {
-	return int(math.Floor(float64(volume.Volume*185/100) + .5))
-}
-
-type MuteInfo struct {
-	Muted bool
-}
-
+// AVR contains the connection to the device.
 type AVR struct {
 	Conn net.Conn
 }
 
+// Start opens a goroutine to check for new data and decode it.
 func (avr AVR) Start() <-chan interface{} {
 	out := make(chan interface{})
 
@@ -82,18 +35,16 @@ func (avr AVR) Start() <-chan interface{} {
 	return out
 }
 
+// Send sends a command with data to the device.
 func (avr AVR) Send(cmd string, args ...interface{}) {
 	fmt.Fprintf(avr.Conn, cmd+"\r\n", args...)
 }
 
+// decode attempts to determine what kind of data has been sent.
 func (avr AVR) decode(line string) interface{} {
 	if len(line) >= 2 && line[:2] == "FL" {
-		status := byte(line[3])
-
 		return DisplayInfo{
-			Message:       avr.decodeHexString(line[2:]),
-			GUIDIcon:      status&(1<<0) == (1 << 0),
-			VolumeDisplay: status&(1<<1) == (1 << 1),
+			Message: avr.decodeHexString(line[2:]),
 		}
 	} else if len(line) >= 3 && line[:3] == "PWR" {
 		return PowerInfo{
@@ -117,6 +68,7 @@ func (avr AVR) decode(line string) interface{} {
 	return nil
 }
 
+// decodeHexString decodes the hex string from the display info.
 func (avr AVR) decodeHexString(str string) string {
 	b := bytes.Buffer{}
 
@@ -128,6 +80,7 @@ func (avr AVR) decodeHexString(str string) string {
 	return b.String()
 }
 
+// NewAVR connects to the device at IP:port.
 func NewAVR(host string) (*AVR, error) {
 	conn, err := net.Dial("tcp", host)
 	if err != nil {
